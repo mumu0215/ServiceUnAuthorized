@@ -49,6 +49,9 @@ func FlagMain(c *cli.Context) error{
 				return errors.New("password file not exist")
 			}
 			PassWordList,err=ParsePassword(PassWordFile)
+			if err!=nil{
+				return err
+			}
 			fmt.Println(PassWordList)
 		}
 	}

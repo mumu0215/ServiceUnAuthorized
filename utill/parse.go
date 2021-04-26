@@ -34,6 +34,13 @@ func ParsePassword(fileName string) ([]string,error) {
 	}
 	var passwordList []string
 	passwordStr:=strings.TrimSpace(string(dataPassword))
-	passwordList=strings.Split(passwordStr,"\n")
+	temp:=strings.Split(passwordStr,"\n")
+	passwordList= func() []string{
+		var temp1 []string
+		for _,n :=range temp{
+			temp1=append(temp1,strings.TrimSpace(n))
+		}
+		return temp1
+	}()
 	return passwordList,nil
 }
