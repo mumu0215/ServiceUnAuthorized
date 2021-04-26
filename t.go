@@ -2,22 +2,10 @@ package main
 
 import (
 	"fmt"
-	"strings"
+	"src/common"
 )
 
 func main(){
-	a:=[]string{
-		"213",
-		" sdfsd ",
-		" dfsfff",
-	}
-	fmt.Println(a)
-	b:= func() []string{
-		var temp []string
-		for _,n :=range a{
-			temp=append(temp,strings.TrimSpace(n))
-		}
-		return temp
-	}()
-	fmt.Println(b)
+	a:=common.Task{}
+	fmt.Println(a.ServiceName=="")
 }

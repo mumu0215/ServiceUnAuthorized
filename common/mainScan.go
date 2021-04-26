@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"strings"
+	"sync"
 )
 
 var (
@@ -24,6 +25,28 @@ var (
 	mysqlNameSlice =[]string{"mysql"}
 	mssqlNameSlice =[]string{"sa"}
 )
+
+func MainWorker(wg *sync.WaitGroup,task chan Task)  {
+	for tempTask :=range task{
+	}
+}
+
+func worker(task chan Task)  string{
+	temp:=<-task
+	switch temp.ServiceName {
+	case "mongoDB":
+	case "redis":
+	case "mysql":
+	case "mssql":
+	case "ssh":
+	case "telnet":
+	case "ftp":
+	case "oracle-tns":
+	default:
+
+	}
+	return ""
+}
 
 
 //统一接收ip port

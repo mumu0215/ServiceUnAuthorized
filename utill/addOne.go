@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"os"
+	"src/common"
+	"sync"
 )
 
 var(
@@ -31,7 +33,7 @@ func FlagMain(c *cli.Context) error{
 			return errors.New("input file not exist")
 		}
 	}
-	var myService ServiceList
+	var myService common.ServiceList
 	var err error
 	myService,err=ParseJsonInput(InputFile)
 	if err!=nil{
@@ -55,6 +57,17 @@ func FlagMain(c *cli.Context) error{
 			fmt.Println(PassWordList)
 		}
 	}
+	//处理任务采用生产/消费模式，使用channel进行数据交互
+	var myTaskList []common.Task
+	taskChannel:=make(chan common.Task,)
+	myTaskList=GenerateTasks(myService,IsBrute)
+	wg:=&sync.WaitGroup{}
+	numOfTask:=len(myTaskList)
+	for i:=0;i<Thread;i++{
+		wg.Add(1)
+		go common.MainWorker()
+	}
+	wg.Wait()
 	return nil
 }
 

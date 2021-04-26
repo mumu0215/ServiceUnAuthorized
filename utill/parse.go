@@ -3,27 +3,22 @@ package utill
 import (
 	jsoniter "github.com/json-iterator/go"
 	"io/ioutil"
+	"runtime"
+	"src/common"
 	"strings"
 )
 var json=jsoniter.ConfigCompatibleWithStandardLibrary
+var NumOfCpu=runtime.NumCPU()
 
-type Service struct {
-	Service string `json:"service"`
-	IpPortList []string `json:"ip_port_list"`
-}
-type ServiceList struct {
-	ServiceList []Service `json:"service_list"`
-}
-
-func ParseJsonInput(fileName string) (ServiceList,error) {
+func ParseJsonInput(fileName string) (common.ServiceList,error) {
 	dataJson,err:=ioutil.ReadFile(fileName)
 	if err!=nil{
-		return ServiceList{},err
+		return common.ServiceList{},err
 	}
-	var myServiceList ServiceList
+	var myServiceList common.ServiceList
 	err=json.UnmarshalFromString(string(dataJson),&myServiceList)
 	if err!=nil{
-		return ServiceList{},err
+		return common.ServiceList{},err
 	}
 	return myServiceList,nil
 }
@@ -43,4 +38,20 @@ func ParsePassword(fileName string) ([]string,error) {
 		return temp1
 	}()
 	return passwordList,nil
+}
+
+func GenerateTasks(serviceAll common.ServiceList,isBrute bool) []common.Task {   //读入解析后的json，解析成待扫描的数据格式
+	var taskList []common.Task
+	for _,ser:=range serviceAll.ServiceList{
+		serviceName:=ser.Service
+		for _,t:=range ser.IpPortList{
+			temp:=common.Task{
+				ServiceName: serviceName,
+				IpPort:      t,
+				IsBrute:     isBrute,
+			}
+			taskList=append(taskList,temp)
+		}
+	}
+	return taskList
 }

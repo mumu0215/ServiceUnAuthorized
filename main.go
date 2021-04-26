@@ -4,11 +4,13 @@ import (
 	"github.com/urfave/cli/v2"
 	"log"
 	"os"
+	"runtime"
 	"src/utill"
 )
 
 
 func main() {
+	runtime.GOMAXPROCS(utill.NumOfCpu)
 	app:=&cli.App{
 		Name:                   "unAuthorizedCheck",
 		Description:"Tools to scan unAuthorized services",
