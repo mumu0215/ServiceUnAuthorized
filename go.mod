@@ -12,6 +12,7 @@ require (
 	github.com/json-iterator/go v1.1.10
 	github.com/pangudashu/memcache v0.0.0-20190519054813-4e579607dcd6
 	github.com/panjf2000/ants/v2 v2.4.4 // indirect
+	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414 // indirect
 	github.com/urfave/cli/v2 v2.3.0
 	go.mongodb.org/mongo-driver v1.4.6
 )

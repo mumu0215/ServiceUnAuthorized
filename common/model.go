@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bradfitz/gomemcache/memcache"
@@ -12,6 +13,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ var (
 	MongoDBCon     *mongo.Client
 	MysqlDBCon        *gorm.DB
 	MssqlDBCon        *gorm.DB
+	Client *http.Client
 
 	ftpNameSlice   =[]string{"anonymous","ftp"}    //空密码账户
 	ftpPassSlice=[]string{"","anonymous@gmail.com"}
@@ -47,9 +50,16 @@ type Result struct {   //统一输出结果
 	IpPort string      //192.168.1.1:3306
 	UserPass string     //admin/pass
 }
-type ScanFunc func(ipPort string)(userPass string,isSuccess bool)
+type ScanFunc func(ipPort string)(userPass string,isSuccess bool)  //userPass可以填充提示信息字符串
 
 func init()  {
+	Client=&http.Client{
+		Timeout:time.Duration(5)*time.Second,
+		Transport: &http.Transport{
+			//参数未知影响，目前不使用
+			//TLSHandshakeTimeout: time.Duration(timeout) * time.Second,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},}
 	ScanFuncMap["mongoDB"]=CheckMongoDB
 	ScanFuncMap["redis"]=CheckRedis
 	ScanFuncMap["memcached"]=CheckMemCache
@@ -65,28 +75,126 @@ func dealWithEla(s string)bool{
 	}
 	return false
 }
+func sendGetRequest(url string)(int,string,bool){
+	req,err:=http.NewRequest("GET",url,nil)
+	if err!=nil{
+		return 0,"", false
+	}
+	respond,err:=Client.Do(req)
+	if err!=nil{
+		return respond.StatusCode,"", false
+	}
+	defer respond.Body.Close()
+	temp,err:=goquery.NewDocumentFromReader(respond.Body)
+	return respond.StatusCode,temp.Text(),true
+}
 
 //统一接收ip port
-func CheckHadoop(ipPort string)(string,bool){    //50070
-	return "", false
+func CheckHadoop(ipPort string)(string,bool){    //50070 /ws/v1/cluster/info
+	statusCode,temp,isSend:=sendGetRequest("http://"+ipPort+"/ws/v1/cluster/info")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200&&strings.Contains(temp,"resourceManagerVersionBuiltOn")&&strings.Contains(temp,"hadoopVersion"){
+		return ipPort+" has Hadoop unAuthorized",true
+	}else {
+		return "", false
+	}
 }
 func CheckDocker(ipPort string)(string,bool){    //2375
-	return "", false
+	statusCode,tempStr,isSend:=sendGetRequest("http://"+ipPort+"/info")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200&&strings.Contains(tempStr,"KernelVersion")&&strings.Contains(tempStr,"RegistryConfig")&&strings.Contains(tempStr,"DockerRootDir"){
+		return ipPort+" has Docker api unAuthorized", true
+	}else {
+		return "", false
+	}
 }
-func CheckCouchDB(ipPort string) (string,bool) {   //5984 443等
-	return "", false
+func CheckCouchDB(ipPort string) (string,bool) {   //5984 6984 443等
+	statusCode,tempStr,isSend:=sendGetRequest("http://"+ipPort+"/_config")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200&&strings.Contains(tempStr,"httpd_design_handlers")&&strings.Contains(tempStr,"external_manager")&&strings.Contains(tempStr,"replicator_manager"){
+		return ipPort+" has CouchDB unAuthorized", true
+	}else {
+		return "", false
+	}
 }
 func CheckZooKeeper(ipPort string)(string,bool)  {  //2181
-	return "",false
-}
-func CheckElasticsearch(ipPort string)(string,bool){
-	resp,err:=http.Get("http://"+ipPort+"/_cat")
+	conn,err:=net.DialTimeout("tcp",ipPort,time.Second*5)
 	if err!=nil{
-		return "",false
+		return "", false
 	}
-	temp,_:=goquery.NewDocumentFromReader(resp.Body)
-	if resp.StatusCode==200 && dealWithEla(temp.Text()){
-		return "/",true
+	conn.Write([]byte("envi"))
+	d:=make([]byte,4096)
+	in,err:=conn.Read(d)
+	if err!=nil{
+		return "", false
+	}
+	if strings.HasPrefix(string(d[:in]),"Environment:"){
+		return ipPort+" has Zookeeper unAuthorized", true
+	}else {
+		return "", false
+	}
+}
+func CheckJenkins(ipPort string)(string,bool){   //web port
+	statusCode,_,isSend:=sendGetRequest("http://"+ipPort+"/script")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200{
+		return ipPort+" has Jenkins unAuthorized", true
+	}
+	return "", false
+}
+func CheckVNC(ipPort string)(string,bool){    //5900 5901
+	return "", false
+}
+func CheckNfs(ipPort string)(string,bool)  {    //2049
+	return "", false
+}
+func CheckRsync(ipPort string)(string,bool){    //873
+	return "", false
+}
+func CheckKibana(ipPort string)(string,bool){  //5601 web
+	return "", false
+}
+func CheckKubernetes(ipPort string)(string,bool){   //web
+	return "", false
+}
+func CheckActiveMQ(ipPort string)(string,bool){    //8161
+	return "", false
+}
+func CheckRabbitMQ(ipPort string)(string,bool){   //5672,15672（guest/guest）
+	return "", false
+}
+func CheckActuator(ipPort string)(string,bool){    //web
+	return "", false
+}
+func CheckJBoss(ipPort string)(string,bool){     //web   /jmx-console
+	return "", false
+}
+func CheckApacheDubbo(ipPort string)(string,bool){     //telnet ipport 20880
+	return "", false
+}
+func CheckAlibbDubbo(ipPort string)(string,bool){    //telnet ipport 6600     web端口 root/root guest/guest
+	return "", false
+}
+
+func CheckAtlassianCrowd(ipPort string)(string,bool){   //  /crowd/admin/uploadplugin.action  400即存在
+	return "", false
+}
+
+func CheckElasticsearch(ipPort string)(string,bool){
+	statusCode,temp,isSend:=sendGetRequest("http://"+ipPort+"/_cat")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200 && dealWithEla(temp){
+		return ipPort+" has Elasticsearch unAuthorized",true
 	}
 	return "",false
 }
@@ -102,7 +210,7 @@ func CheckRedis(ipPort string) (string,bool){
 	if err!=nil{
 		return "",false
 	}else {
-		return "/",true
+		return ipPort+" has Redis unAuthorized",true
 	}
 }
 func CheckMemCache(ipPort string)(string,bool ) {
@@ -115,7 +223,7 @@ func CheckMemCache(ipPort string)(string,bool ) {
 	if err!=nil{
 		return "",false
 	}else {
-		return "/",true
+		return ipPort+" has MemCache unAuthorized",true
 	}
 }
 func CheckFtp(ipPort string)(string,bool)  {
@@ -130,7 +238,7 @@ func CheckFtp(ipPort string)(string,bool)  {
 			err = FtpCon.Login(userName, userPass)
 			if err == nil {
 				FtpCon.Close()
-				return userName+"/"+userPass,true
+				return ipPort+" has Ftp unAuthorized: "+userName+"/"+userPass,true
 			}
 		}
 	}
@@ -148,17 +256,15 @@ func CheckMongoDB(ipPort string)(string,bool)  {
 	var err error
 	MongoDBCon,err=mongo.Connect(context.TODO(),clientOption)
 	if err!=nil{
-		fmt.Println("Unable to connect MongoDB:"+ipPort)
 		return "",false
 	}
 	err= MongoDBCon.Ping(context.TODO(),nil)
 	if err!=nil{
 		MongoDBCon.Disconnect(context.TODO())
-		fmt.Println("Check mongoDB link failed:"+ipPort)
 		return "",false
 	}
 	MongoDBCon.Disconnect(context.TODO())
-	return "/",true
+	return ipPort+" has MongoDB unAuthorized",true
 }
 
 func CheckMysql(ipPort string)(bool,string)  {
