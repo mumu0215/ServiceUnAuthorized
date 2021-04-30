@@ -31,7 +31,7 @@ var (
 	ftpPassSlice=[]string{"","anonymous@gmail.com"}
 	mysqlNameSlice =[]string{"mysql"}
 	mssqlNameSlice =[]string{"sa"}
-
+	author=[]string{"Basic Z3Vlc3Q6Z3Vlc3Q=","Basic cm9vdDpyb290"}
 	ScanFuncMap map[string]ScanFunc
 )
 type Task struct {
@@ -48,7 +48,7 @@ type ServiceList struct {
 }
 type Result struct {   //统一输出结果
 	IpPort string      //192.168.1.1:3306
-	UserPass string     //admin/pass
+	UserPass string     //admin/pass提示字符串
 }
 type ScanFunc func(ipPort string)(userPass string,isSuccess bool)  //userPass可以填充提示信息字符串
 
@@ -65,6 +65,11 @@ func init()  {
 	ScanFuncMap["memcached"]=CheckMemCache
 	ScanFuncMap["ftp"]=CheckFtp
 	ScanFuncMap["elasticsearch"]=CheckElasticsearch   //9200
+	ScanFuncMap["hadoop"]=CheckHadoop
+	ScanFuncMap["docker"]=CheckDocker
+	ScanFuncMap["couchdb"]=CheckCouchDB
+	ScanFuncMap["zookeeper"]=CheckZooKeeper
+	ScanFuncMap["jenkins"]=CheckJenkins
 }
 func dealWithEla(s string)bool{
 	temp:=strings.Split(s,"\n")[1:]
@@ -160,31 +165,136 @@ func CheckRsync(ipPort string)(string,bool){    //873
 	return "", false
 }
 func CheckKibana(ipPort string)(string,bool){  //5601 web
+	statusCode,tempStr,isSend:=sendGetRequest("http://"+ipPort+"/app/kibana")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200&&strings.Contains(tempStr,".kibanaWelcomeView"){
+		return ipPort+" has Kibana unAuthorized", true
+	}
 	return "", false
 }
 func CheckKubernetes(ipPort string)(string,bool){   //web
+	statusCode,tempStr,isSend:=sendGetRequest("http://"+ipPort)
+	if !isSend{
+		return "", false
+	}
+	statusCode1,_,isSend:=sendGetRequest("http://"+ipPort+"/api")
+	if !isSend{
+		return "",false
+	}
+	if statusCode==200&&strings.Contains(tempStr,"/api")&&statusCode1==200{
+		return ipPort+" has k8s unAuthorized", true
+	}
 	return "", false
 }
 func CheckActiveMQ(ipPort string)(string,bool){    //8161
+	statusCode,tempStr,isSend:=sendGetRequest("http://"+ipPort+"/admin")
+	if !isSend{
+		return "", false
+	}
+	if statusCode==200&&strings.Contains(tempStr,"ActiveMQ Console"){
+		return ipPort+" has ActiveMQ unAuthorized", true
+	}else if statusCode==401{
+		req,err:=http.NewRequest("GET","http://"+ipPort+"/admin",nil)
+		if err!=nil{
+			return "", false
+		}
+		req.Header.Add("Authorization","Basic YWRtaW46YWRtaW4=")
+		req.Header.Add("User-Agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:78.0) Gecko/20100101 Firefox/78.0")
+		respond,err:=Client.Do(req)
+		if err!=nil{
+			return "", false
+		}
+		defer respond.Body.Close()
+		temp,err:=goquery.NewDocumentFromReader(respond.Body)
+		if respond.StatusCode==200 && strings.Contains(temp.Text(),"ActiveMQ Console"){
+			return ipPort+" has ActiveMQ unAuthorized, admin/admin", true
+		}
+	}
 	return "", false
 }
 func CheckRabbitMQ(ipPort string)(string,bool){   //5672,15672（guest/guest）
+	req,err:=http.NewRequest("GET","http://"+ipPort+"/api/whoami",nil)
+	if err!=nil{
+		return "", false
+	}
+	req.Header.Add("authorization","Basic Z3Vlc3Q6Z3Vlc3Q=")
+	req.Header.Add("User-Agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:78.0) Gecko/20100101 Firefox/78.0")
+	respond,err:=Client.Do(req)
+	if err!=nil{
+		return "", false
+	}
+	defer respond.Body.Close()
+	temp,err:=goquery.NewDocumentFromReader(respond.Body)
+	if respond.StatusCode==200 && strings.Contains(temp.Text(),"\"name\":\"guest"){
+		return ipPort+" has RabbitMQ unAuthorized, guest/guest", true
+	}
 	return "", false
 }
-func CheckActuator(ipPort string)(string,bool){    //web
+func CheckSpringBootActuator(ipPort string)(string,bool){    //web
+	statusCode1,temp1,isSend:=sendGetRequest("http://"+ipPort+"/env")
+	statusCode2,temp2,isSend1:=sendGetRequest("http://"+ipPort+"/actuator/env")
+	if isSend{
+		if statusCode1==200&&strings.Contains(temp1,"java.version")&&strings.Contains(temp1,"os.arch"){
+			return ipPort+" has SpringBoot Actuator unAuthorized in /env", true
+		}
+	}else if isSend1{
+		if statusCode2==200&&strings.Contains(temp2,"java.version")&&strings.Contains(temp2,"os.arch"){
+			return ipPort+" has SpringBoot Actuator unAuthorized in /actuator/env", true
+		}
+	}
 	return "", false
 }
 func CheckJBoss(ipPort string)(string,bool){     //web   /jmx-console
+	statusCode,temp,isSend:=sendGetRequest("http://"+ipPort+"/jmx-console/")
+	if isSend{
+		if statusCode==200&&strings.Contains(temp,"jboss.management.local")&&strings.Contains(temp,"jboss.web"){
+			return ipPort+" has JBoss unAuthorized", true
+		}
+	}
 	return "", false
 }
-func CheckApacheDubbo(ipPort string)(string,bool){     //telnet ipport 20880
+func CheckDubbo(ipPort string)(string,bool){     //存在web和协议端口两种测试方式 Dubbo Admin
+	//Authorization: Basic Z3Vlc3Q6Z3Vlc3Q=
+
+	for index,auth:=range author{
+		req,err:=http.NewRequest("GET","http://"+ipPort+"/",nil)
+		if err!=nil{
+			return "", false
+		}
+		req.Header.Add("Authorization",auth)
+		req.Header.Add("User-Agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:78.0) Gecko/20100101 Firefox/78.0")
+		respond,err:=Client.Do(req)
+		if err!=nil{
+			return "", false
+		}
+		defer respond.Body.Close()
+		temp,err:=goquery.NewDocumentFromReader(respond.Body)
+		if respond.StatusCode==200 && strings.Contains(temp.Text(),"Dubbo Admin"){
+			if index==0{
+				return ipPort+" has Dubbo unAuthorized, guest/guest", true
+			}else if index==1{
+				return ipPort+" has Dubbo unAuthorized, root/root", true
+			}
+		}
+	}
 	return "", false
 }
-func CheckAlibbDubbo(ipPort string)(string,bool){    //telnet ipport 6600     web端口 root/root guest/guest
-	return "", false
-}
+//func CheckApacheDubbo(ipPort string)(string,bool){     //telnet ipport 20880
+//	return "", false
+//}
+//func CheckAlibbDubbo(ipPort string)(string,bool){    //telnet ipport 6600     web端口 root/root guest/guest
+//	return "", false
+//}
 
 func CheckAtlassianCrowd(ipPort string)(string,bool){   //  /crowd/admin/uploadplugin.action  400即存在
+	statusCode,_,isSend:=sendGetRequest("http://"+ipPort+"/crowd/admin/uploadplugin.action")
+	if isSend{
+		if statusCode==400{
+			return ipPort+" has Atlassian-Crowd unAuthorized which can lead to rce", true
+		}
+	}
 	return "", false
 }
 
@@ -203,7 +313,7 @@ func CheckRedis(ipPort string) (string,bool){
 		Addr:     ipPort,
 		Password: "", // no password set
 		DB:       0,  // use default DB
-		DialTimeout:3,
+		DialTimeout:time.Duration(4),
 	})
 	_,err:= RedisCon.Ping().Result()
 	RedisCon.Close()
