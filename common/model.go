@@ -64,12 +64,21 @@ func init()  {
 	ScanFuncMap["redis"]=CheckRedis
 	ScanFuncMap["memcached"]=CheckMemCache
 	ScanFuncMap["ftp"]=CheckFtp
+	ScanFuncMap["zookeeper"]=CheckZooKeeper
+
 	ScanFuncMap["elasticsearch"]=CheckElasticsearch   //9200
 	ScanFuncMap["hadoop"]=CheckHadoop
 	ScanFuncMap["docker"]=CheckDocker
 	ScanFuncMap["couchdb"]=CheckCouchDB
-	ScanFuncMap["zookeeper"]=CheckZooKeeper
 	ScanFuncMap["jenkins"]=CheckJenkins
+	ScanFuncMap["kibana"]=CheckKibana
+	ScanFuncMap["kubernetes"]=CheckKubernetes
+	ScanFuncMap["activemq"]=CheckActiveMQ
+	ScanFuncMap["rabbitmq"]=CheckRabbitMQ
+	ScanFuncMap["sprintboot"]=CheckSpringBootActuator
+	ScanFuncMap["jboss"]=CheckJBoss
+	ScanFuncMap["dubbo"]=CheckDubbo
+	ScanFuncMap["atlassiancrowd"]=CheckAtlassianCrowd
 }
 func dealWithEla(s string)bool{
 	temp:=strings.Split(s,"\n")[1:]
@@ -128,7 +137,7 @@ func CheckCouchDB(ipPort string) (string,bool) {   //5984 6984 443等
 		return "", false
 	}
 }
-func CheckZooKeeper(ipPort string)(string,bool)  {  //2181
+func CheckZooKeeper(ipPort string)(string,bool)  {  //2181   service端口
 	conn,err:=net.DialTimeout("tcp",ipPort,time.Second*5)
 	if err!=nil{
 		return "", false
@@ -257,7 +266,6 @@ func CheckJBoss(ipPort string)(string,bool){     //web   /jmx-console
 }
 func CheckDubbo(ipPort string)(string,bool){     //存在web和协议端口两种测试方式 Dubbo Admin
 	//Authorization: Basic Z3Vlc3Q6Z3Vlc3Q=
-
 	for index,auth:=range author{
 		req,err:=http.NewRequest("GET","http://"+ipPort+"/",nil)
 		if err!=nil{
@@ -281,12 +289,6 @@ func CheckDubbo(ipPort string)(string,bool){     //存在web和协议端口两�
 	}
 	return "", false
 }
-//func CheckApacheDubbo(ipPort string)(string,bool){     //telnet ipport 20880
-//	return "", false
-//}
-//func CheckAlibbDubbo(ipPort string)(string,bool){    //telnet ipport 6600     web端口 root/root guest/guest
-//	return "", false
-//}
 
 func CheckAtlassianCrowd(ipPort string)(string,bool){   //  /crowd/admin/uploadplugin.action  400即存在
 	statusCode,_,isSend:=sendGetRequest("http://"+ipPort+"/crowd/admin/uploadplugin.action")

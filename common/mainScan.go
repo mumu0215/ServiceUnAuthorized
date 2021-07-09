@@ -4,8 +4,6 @@ import (
 	"sync"
 )
 
-
-
 func MainWorker(wg *sync.WaitGroup,task chan Task,results []Result)  {
 	for tempTask :=range task{
 		if tempTask.ServiceName==""{
